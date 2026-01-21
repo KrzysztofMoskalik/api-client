@@ -2,24 +2,36 @@
   "name": "krzysztof-moskalik/api-client",
   "type": "library",
   "license": "MIT",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Client for consuming REST APIs",
+  "authors": [
+    {
+      "name": "Krzysztof Moskalik",
+      "email": "kontakt@krzysztof-moskalik.pl",
+      "homepage": "https://krzysztof-moskalik.pl",
+      "role": "Developer"
+    }
+  ],
   "autoload": {
     "psr-4": {
       "KrzysztofMoskalik\\ApiClient\\": ""
     }
   },
   "require": {
-    "php": ">=8.5",
+    "php": ">=8.4",
     "symfony/property-access": "^8.0",
-    "guzzlehttp/guzzle": "^7.10",
+    "psr/http-client": "^1.0",
     "symfony/serializer": "^8.0",
     "phpdocumentor/reflection-docblock": "^6.0"
+  },
+  "suggest": {
+    "guzzlehttp/guzzle": "^7.10"
   },
   "require-dev": {
     "friendsofphp/php-cs-fixer": "^3.92",
     "vimeo/psalm": "^6.14",
-    "phpstan/phpstan": "^2.1"
+    "phpstan/phpstan": "^2.1",
+    "phpunit/phpunit": "^12.5"
   },
   "scripts": {
     "analyze": [

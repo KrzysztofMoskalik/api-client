@@ -8,7 +8,8 @@ class ConfigurationRegistry implements ConfigurationRegistryInterface
 {
     public function __construct(
         private array $apiConfigurations = [],
-        private array $resourceConfigurations = []
+        private array $resourceConfigurations = [],
+        private GlobalConfiguration $globalConfiguration,
     ) {}
 
     public function addApiConfiguration(ApiConfiguration $apiConfiguration): void
@@ -43,5 +44,15 @@ class ConfigurationRegistry implements ConfigurationRegistryInterface
             $this->resourceConfigurations,
             fn($resourceConfiguration) => $resourceConfiguration->model === $modelClass
         );
+    }
+
+    public function setGlobalConfiguration(GlobalConfiguration $globalConfiguration): void
+    {
+        $this->globalConfiguration = $globalConfiguration;
+    }
+
+    public function getGlobalConfiguration(): GlobalConfiguration
+    {
+        return $this->globalConfiguration;
     }
 }

@@ -3,6 +3,8 @@
 namespace KrzysztofMoskalik\ApiClient;
 
 use KrzysztofMoskalik\ApiClient\Configuration\ConfigurationRegistry;
+use KrzysztofMoskalik\ApiClient\Configuration\GlobalConfiguration;
+use KrzysztofMoskalik\ApiClient\Contract\AuthInterface;
 use KrzysztofMoskalik\ApiClient\Contract\ConfigurationRegistryInterface;
 use KrzysztofMoskalik\ApiClient\Contract\RepositoryRegistryInterface;
 use KrzysztofMoskalik\ApiClient\Repository\AbstractRepository;
@@ -24,6 +26,7 @@ class Client
     public function __construct(
         readonly array $apiConfigurations = [],
         readonly array $resourceConfigurations = [],
+        readonly array $globalConfiguration = [],
         readonly array $repositories = [],
         private readonly ?SerializerInterface            $serializer = null,
         private readonly ?ConfigurationRegistryInterface $configurationRegistry = null,
@@ -45,7 +48,11 @@ class Client
                         new JsonEncoder(),
                     ]
                 ),
-                $this->configurationRegistry ?? new ConfigurationRegistry($apiConfigurations, $resourceConfigurations),
+                $this->configurationRegistry ?? new ConfigurationRegistry(
+                    $apiConfigurations,
+                    $resourceConfigurations,
+                    GlobalConfiguration::fromArray($globalConfiguration)
+                ),
                 $this->repositoryRegistry ?? new RepositoryRegistry($repositories),
             );
         }

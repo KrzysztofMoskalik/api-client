@@ -9,6 +9,7 @@ use KrzysztofMoskalik\ApiClient\Contract\ConfigurationRegistryInterface;
 use KrzysztofMoskalik\ApiClient\Contract\RepositoryInterface;
 use KrzysztofMoskalik\ApiClient\Exception\ConfigurationException;
 use Override;
+use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 
@@ -21,6 +22,7 @@ abstract class AbstractRepository implements RepositoryInterface
     private string $resourcePath;
     private ResourceConfiguration $resourceConfiguration;
     private ApiConfiguration $apiConfiguration;
+    private ClientInterface $client;
 
     /**
      * @psalm-api
@@ -41,6 +43,8 @@ abstract class AbstractRepository implements RepositoryInterface
 
         $this->apiUrl = $this->apiConfiguration->baseUrl;
         $this->resourcePath = $this->resourceConfiguration->path;
+
+        $this->client = $this->configurationRegistry->getGlobalConfiguration()->getHttpClient();
     }
 
     #[Override]
@@ -54,10 +58,9 @@ abstract class AbstractRepository implements RepositoryInterface
         $endpointConfig = $this->getEndpointConfig($endpoint);
         $this->addExtraHeaders($options);
 
-        $client = new \GuzzleHttp\Client();
         $this->authorize($options);
 
-        $response = $client->get($this->apiUrl . $this->resourcePath . $id, $options);
+        $response = $this->client->get($this->apiUrl . $this->resourcePath . $id, $options);
 
         return $this->parseResponse($response, $endpointConfig);
     }
@@ -67,10 +70,9 @@ abstract class AbstractRepository implements RepositoryInterface
         $endpointConfig = $this->getEndpointConfig($endpoint);
         $this->addExtraHeaders($options);
 
-        $client = new \GuzzleHttp\Client();
         $this->authorize($options);
 
-        $response = $client->get($this->apiUrl . $this->resourcePath, $options);
+        $response = $this->client->get($this->apiUrl . $this->resourcePath, $options);
 
         return $this->parseResponse($response, $endpointConfig);
     }
@@ -80,7 +82,6 @@ abstract class AbstractRepository implements RepositoryInterface
         $endpointConfig = $this->getEndpointConfig($endpoint);
         $this->addExtraHeaders($options);
 
-        $client = new \GuzzleHttp\Client();
         $this->authorize($options);
 
         if ($endpointConfig->requestDataPath) {
@@ -91,7 +92,7 @@ abstract class AbstractRepository implements RepositoryInterface
 
         $options['body'] = $this->serializer->serialize($data, 'json');
 
-        $response = $client->post($this->apiUrl . $this->resourcePath, $options);
+        $response = $this->client->post($this->apiUrl . $this->resourcePath, $options);
 
         return $this->parseResponse($response, $endpointConfig);
     }
