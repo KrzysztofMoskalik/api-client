@@ -2,7 +2,7 @@
   "name": "krzysztof-moskalik/api-client",
   "type": "library",
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Client for consuming REST APIs",
   "autoload": {
     "psr-4": {
