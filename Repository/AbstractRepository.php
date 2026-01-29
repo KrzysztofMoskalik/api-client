@@ -2,50 +2,23 @@
 
 namespace KrzysztofMoskalik\ApiClient\Repository;
 
-use KrzysztofMoskalik\ApiClient\Configuration\ApiConfiguration;
+use KrzysztofMoskalik\ApiClient\Configuration\Api;
 use KrzysztofMoskalik\ApiClient\Configuration\Endpoint;
-use KrzysztofMoskalik\ApiClient\Configuration\ResourceConfiguration;
-use KrzysztofMoskalik\ApiClient\Contract\ConfigurationRegistryInterface;
+use KrzysztofMoskalik\ApiClient\Configuration\EndpointType;
+use KrzysztofMoskalik\ApiClient\Configuration\GlobalConfiguration;
+use KrzysztofMoskalik\ApiClient\Configuration\Resource;
 use KrzysztofMoskalik\ApiClient\Contract\RepositoryInterface;
-use KrzysztofMoskalik\ApiClient\Exception\ConfigurationException;
 use Override;
-use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
-use Symfony\Component\Serializer\SerializerInterface;
 
-/**
- * @psalm-api
- */
 abstract class AbstractRepository implements RepositoryInterface
 {
-    private string $apiUrl;
-    private string $resourcePath;
-    private ResourceConfiguration $resourceConfiguration;
-    private ApiConfiguration $apiConfiguration;
-    private ClientInterface $client;
-
-    /**
-     * @psalm-api
-     */
     public function __construct(
-        private readonly SerializerInterface $serializer,
-        private readonly ConfigurationRegistryInterface $configurationRegistry,
-        private readonly string $modelClass = '',
-    ) {
-        $modelClass = $this->getModelClass();
-
-        if (empty($modelClass)) {
-            return;
-        }
-
-        $this->resourceConfiguration = $this->configurationRegistry->getResourceConfigurationForModel($modelClass);
-        $this->apiConfiguration = $this->configurationRegistry->getApiConfiguration($this->resourceConfiguration->api);
-
-        $this->apiUrl = $this->apiConfiguration->baseUrl;
-        $this->resourcePath = $this->resourceConfiguration->path;
-
-        $this->client = $this->configurationRegistry->getGlobalConfiguration()->getHttpClient();
-    }
+        private Api $api,
+        private Resource $resource,
+        private GlobalConfiguration $configuration,
+    ) {}
 
     #[Override]
     public static function supports(): string
@@ -53,123 +26,106 @@ abstract class AbstractRepository implements RepositoryInterface
         return '';
     }
 
-    public function get(string $id, string $endpoint = 'get', array $options = []): mixed
+    public function get(string $id, array $options = [], EndpointType $endpointType = EndpointType::GET): mixed
     {
-        $endpointConfig = $this->getEndpointConfig($endpoint);
-        $this->addExtraHeaders($options);
-
-        $this->authorize($options);
-
-        $response = $this->client->get($this->apiUrl . $this->resourcePath . $id, $options);
-
-        return $this->parseResponse($response, $endpointConfig);
+        return $this->doAction(
+            $endpointType,
+            [$this->api->getBaseUrl(), $this->resource->getPath(), $id],
+            $options
+        );
     }
 
-    public function getAll(string $endpoint = 'getAll', array $options = []): mixed
+    public function list(array $options = [], EndpointType $endpointType = EndpointType::LIST): mixed
     {
-        $endpointConfig = $this->getEndpointConfig($endpoint);
-        $this->addExtraHeaders($options);
-
-        $this->authorize($options);
-
-        $response = $this->client->get($this->apiUrl . $this->resourcePath, $options);
-
-        return $this->parseResponse($response, $endpointConfig);
+        return $this->doAction(
+            $endpointType,
+            [$this->api->getBaseUrl(), $this->resource->getPath()],
+            $options
+        );
     }
 
-    public function create(object $model, string $endpoint = 'create', array $options = []): mixed
+    public function create(array|object $data, array $options = [], EndpointType $endpointType = EndpointType::CREATE): mixed
     {
-        $endpointConfig = $this->getEndpointConfig($endpoint);
-        $this->addExtraHeaders($options);
+        $options['body'] = $data;
 
-        $this->authorize($options);
+        return $this->doAction(
+            $endpointType,
+            [$this->api->getBaseUrl(), $this->resource->getPath()],
+            $options
+        );
+    }
 
-        if ($endpointConfig->requestDataPath) {
-            $data = [$endpointConfig->requestDataPath => $model];
-        } else {
-            $data = $model;
+    public function delete(string $id, array $options = [], EndpointType $endpointType = EndpointType::DELETE): mixed
+    {
+        return $this->doAction(
+            $endpointType,
+            [$this->api->getBaseUrl(), $this->resource->getPath(), $id],
+            $options
+        );
+    }
+
+    public function patch(
+        string $id,
+        array|object $data,
+        array $options = [],
+        EndpointType $endpointType = EndpointType::PATCH
+    ): mixed {
+        $options['body'] = $data;
+
+        return $this->doAction(
+            $endpointType,
+            [$this->api->getBaseUrl(), $this->resource->getPath(), $id],
+            $options
+        );
+    }
+
+    public function update(
+        string $id,
+        array|object $data,
+        array $options = [],
+        EndpointType $endpointType = EndpointType::UPDATE
+    ): mixed {
+        $options['body'] = $data;
+
+        return $this->doAction(
+            $endpointType,
+            [$this->api->getBaseUrl(), $this->resource->getPath(), $id],
+            $options
+        );
+    }
+
+    private function prepareRequest(Endpoint $endpoint, array $uriParts = [], array $options = []): RequestInterface
+    {
+        $request = $endpoint->getRequestHandler()->prepareRequest($this->api, $endpoint, $this->configuration, $uriParts, $options);
+
+        $auth = $this->api->getAuth();
+
+        if ($auth) {
+            $auth->authorize($request);
         }
 
-        $options['body'] = $this->serializer->serialize($data, 'json');
-
-        $response = $this->client->post($this->apiUrl . $this->resourcePath, $options);
-
-        return $this->parseResponse($response, $endpointConfig);
+        return $request;
     }
 
-    public function delete(string $_id, string $_endpoint = 'delete', array $_options = []): mixed
+    private function handleResponse(Endpoint $endpoint, ResponseInterface $response): mixed
     {
-        /** @todo not implemented yet */
-        return null;
+        $handler = $endpoint->getResponseHandler();
+        return $handler->handleResponse($endpoint, $this->resource, $response, $this->configuration);
     }
 
-    public function patch(string $_id, array $_data, string $_endpoint = 'updatePartial', array $_options = []): mixed
+    private function doAction(EndpointType $endpointType, array $uriParts = [], array $options = [])
     {
-        /** @todo not implemented yet */
-        return null;
-    }
+        $endpoint = $this->resource->getEndpointByType($endpointType);
 
-    public function put(string $_id, object $_model, string $_endpoint = 'update', array $_options = []): mixed
-    {
-        /** @todo not implemented yet */
-        return null;
-    }
+        $request = $this->prepareRequest(
+            $endpoint,
+            $uriParts,
+            $options
+        );
 
-    protected function authorize(array &$options): void
-    {
-        $auth = $this->apiConfiguration->auth;
+        $client = $this->configuration->getHttpClient();
+        $response = $client->sendRequest($request);
 
-        if (!$auth) {
-            return;
-        }
-
-        $auth->authorize($options);
-    }
-
-    protected function addExtraHeaders(array &$options): void
-    {
-        if (!empty($this->apiConfiguration->extraHeaders)) {
-            $options['headers']
-                = array_merge(
-                    $options['headers'] ?? [],
-                    $this->apiConfiguration->extraHeaders
-                );
-        }
-    }
-
-    protected function getEndpointConfig(string $name): Endpoint
-    {
-        $endpoint = $this->resourceConfiguration->getEndpoint($name);
-        if (!isset($endpoint)) {
-            throw new ConfigurationException(
-                "Endpoint " . $name . " not configured for resource " . $this->resourceConfiguration->name
-            );
-        }
-
-        return $endpoint;
-    }
-
-    private function parseResponse(ResponseInterface $response, Endpoint $endpointConfig): mixed
-    {
-        $json = $response->getBody()->getContents();
-
-        $decoded = json_decode($json, true);
-
-        if (!empty($endpointConfig->responseDataPath)) {
-            $decoded = $decoded[$endpointConfig->responseDataPath];
-        }
-
-        if ($endpointConfig->type === 'getAll') {
-            $modelClass = $this->getModelClass() . '[]';
-        } else {
-            $modelClass = $this->getModelClass();
-        }
-
-        return $this->serializer->denormalize($decoded, $modelClass);
-    }
-
-    private function getModelClass(): string
-    {
-        return !empty($this->modelClass) ? $this->modelClass : static::supports();
+        return $this->handleResponse($endpoint, $response);
     }
 }

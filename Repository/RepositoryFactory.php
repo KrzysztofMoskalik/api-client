@@ -2,22 +2,30 @@
 
 namespace KrzysztofMoskalik\ApiClient\Repository;
 
-use KrzysztofMoskalik\ApiClient\Contract\ConfigurationRegistryInterface;
-use KrzysztofMoskalik\ApiClient\Contract\RepositoryRegistryInterface;
-use Symfony\Component\Serializer\SerializerInterface;
+use KrzysztofMoskalik\ApiClient\Configuration\ClientConfiguration;
+use KrzysztofMoskalik\ApiClient\Contract\RepositoryInterface;
+use KrzysztofMoskalik\ApiClient\Registry\ApiRegistry;
+use KrzysztofMoskalik\ApiClient\Registry\RepositoryRegistry;
 
 /**
  * @psalm-api
  */
 readonly class RepositoryFactory
 {
-    public function __construct(
-        private SerializerInterface            $serializer,
-        private ConfigurationRegistryInterface $configurationRegistry,
-        private RepositoryRegistryInterface    $repositoryRegistry
-    ) {}
+    private RepositoryRegistry $repositoryRegistry;
 
-    public function getRepository(string $modelClass): AbstractRepository
+    public function __construct(
+        private ClientConfiguration $configuration,
+        private ApiRegistry $apiRegistry
+    ) {
+        $this->repositoryRegistry = new RepositoryRegistry(
+            $this->configuration
+                ->getGlobalConfiguration()
+                ->getRepositories()
+        );
+    }
+
+    public function getRepository(string $modelClass): RepositoryInterface
     {
         $repository = $this->repositoryRegistry->getSupported($modelClass);
 
@@ -32,12 +40,15 @@ readonly class RepositoryFactory
         return $repository;
     }
 
-    public function createRepository(string $modelClass): AbstractRepository
+    public function createRepository(string $modelClass): RepositoryInterface
     {
+        $api = $this->apiRegistry->getForModel($modelClass);
+        $resource = $api->getResourceForModel($modelClass);
+
         return new BaseRepository(
-            $this->serializer,
-            $this->configurationRegistry,
-            $modelClass,
+            $api,
+            $resource,
+            $this->configuration->getGlobalConfiguration(),
         );
     }
 }

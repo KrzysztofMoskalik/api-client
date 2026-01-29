@@ -2,14 +2,14 @@
 
 namespace KrzysztofMoskalik\ApiClient\Contract;
 
+use Psr\Http\Message\RequestInterface;
+
 interface AuthInterface
 {
-    public array $configuration { set; }
-
     /**
      * @psalm-api
      */
-    public function authorize(array &$options): void;
+    public function authorize(RequestInterface $request): void;
 
     /**
      * @psalm-api

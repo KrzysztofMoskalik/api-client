@@ -3,6 +3,7 @@
 namespace KrzysztofMoskalik\ApiClient\Auth;
 
 use KrzysztofMoskalik\ApiClient\Contract\AuthInterface;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * @psalm-api
@@ -16,7 +17,7 @@ class BearerAuth implements AuthInterface
     ) {}
 
     #[\Override]
-    public function authorize(array &$options): void
+    public function authorize(RequestInterface $request): void
     {
         /** @todo not implemented yet */
     }

@@ -3,26 +3,28 @@
 namespace KrzysztofMoskalik\ApiClient\Auth;
 
 use KrzysztofMoskalik\ApiClient\Contract\AuthInterface;
+use KrzysztofMoskalik\ApiClient\Exception\ConfigurationException;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * @psalm-api
  */
-class BasicAuth implements AuthInterface
+readonly class BasicAuth implements AuthInterface
 {
     public function __construct(
-        public array $configuration = [] {
-            set { $this->configuration = $value; }
+        private string $username,
+        private string $password,
+    ) {
+        if (empty($this->username) || empty($this->password)) {
+            throw new ConfigurationException('Username and password must be set for BasicAuth.');
         }
-    ) {}
+    }
 
     #[\Override]
-    public function authorize(array &$options): void
+    public function authorize(RequestInterface $request): void
     {
-        $credentials = base64_encode($this->configuration['username'] . ':' . $this->configuration['password']);
-        $options['headers']['Authorization'] = sprintf(
-            'Basic %s',
-            $credentials
-        );
+        $credentials = base64_encode($this->username . ':' . $this->password);
+        $request->withAddedHeader('Authorization', sprintf('Basic %s', $credentials));
     }
 
     #[\Override]

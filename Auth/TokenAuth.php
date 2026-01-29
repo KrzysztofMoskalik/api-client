@@ -3,6 +3,8 @@
 namespace KrzysztofMoskalik\ApiClient\Auth;
 
 use KrzysztofMoskalik\ApiClient\Contract\AuthInterface;
+use KrzysztofMoskalik\ApiClient\Exception\ConfigurationException;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * @psalm-api
@@ -10,15 +12,18 @@ use KrzysztofMoskalik\ApiClient\Contract\AuthInterface;
 class TokenAuth implements AuthInterface
 {
     public function __construct(
-        public array $configuration = [] {
-            set { $this->configuration = $value; }
+        private string $header,
+        private string $token
+    ) {
+        if (empty($this->header) || empty($this->token)) {
+            throw new ConfigurationException('Header and token must be set for TokenAuth.');
         }
-    ) {}
+    }
 
     #[\Override]
-    public function authorize(array &$options): void
+    public function authorize(RequestInterface $request): void
     {
-        $options['headers'][$this->configuration['header']] = $this->configuration['token'];
+        $request->withAddedHeader($this->header, $this->token);
     }
 
     #[\Override]

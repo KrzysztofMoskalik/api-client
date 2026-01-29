@@ -2,63 +2,58 @@
 
 namespace KrzysztofMoskalik\ApiClient;
 
-use KrzysztofMoskalik\ApiClient\Configuration\ConfigurationRegistry;
+use KrzysztofMoskalik\ApiClient\Configuration\Api;
+use KrzysztofMoskalik\ApiClient\Configuration\ClientConfiguration;
 use KrzysztofMoskalik\ApiClient\Configuration\GlobalConfiguration;
-use KrzysztofMoskalik\ApiClient\Contract\AuthInterface;
-use KrzysztofMoskalik\ApiClient\Contract\ConfigurationRegistryInterface;
-use KrzysztofMoskalik\ApiClient\Contract\RepositoryRegistryInterface;
-use KrzysztofMoskalik\ApiClient\Repository\AbstractRepository;
+use KrzysztofMoskalik\ApiClient\Contract\RepositoryInterface;
+use KrzysztofMoskalik\ApiClient\Registry\ApiRegistry;
 use KrzysztofMoskalik\ApiClient\Repository\RepositoryFactory;
-use KrzysztofMoskalik\ApiClient\Repository\RepositoryRegistry;
-use Symfony\Component\Serializer\Encoder\JsonEncoder;
-use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactory;
-use Symfony\Component\Serializer\Mapping\Loader\AttributeLoader;
-use Symfony\Component\Serializer\Normalizer\ArrayDenormalizer;
-use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
-use Symfony\Component\Serializer\Serializer;
-use Symfony\Component\Serializer\SerializerInterface;
 
+//@todo create generic minimal-config crud client
 class Client
 {
-    /**
-     * @psalm-api
-     */
-    public function __construct(
-        readonly array $apiConfigurations = [],
-        readonly array $resourceConfigurations = [],
-        readonly array $globalConfiguration = [],
-        readonly array $repositories = [],
-        private readonly ?SerializerInterface            $serializer = null,
-        private readonly ?ConfigurationRegistryInterface $configurationRegistry = null,
-        private readonly ?RepositoryRegistryInterface    $repositoryRegistry = null,
-        private ?RepositoryFactory                       $repositoryFactory = null,
-    ) {
-        $metadataFactory = new ClassMetadataFactory(
-            new AttributeLoader()
-        );
+    public GlobalConfiguration $globals;
+    private ApiRegistry $apiRegistry;
+    private RepositoryFactory $repositoryFactory;
 
-        if (!$this->repositoryFactory) {
-            $this->repositoryFactory = new RepositoryFactory(
-                $this->serializer ?? new Serializer(
-                    [
-                        new ObjectNormalizer($metadataFactory),
-                        new ArrayDenormalizer(),
-                    ],
-                    [
-                        new JsonEncoder(),
-                    ]
-                ),
-                $this->configurationRegistry ?? new ConfigurationRegistry(
-                    $apiConfigurations,
-                    $resourceConfigurations,
-                    GlobalConfiguration::fromArray($globalConfiguration)
-                ),
-                $this->repositoryRegistry ?? new RepositoryRegistry($repositories),
-            );
+    public function __construct(
+        private ?ClientConfiguration $configuration = null,
+        array $apis = []
+    )
+    {
+        if ($configuration === null) {
+            $this->configuration = new ClientConfiguration();
         }
+
+        $this->globals = $this->configuration->getGlobalConfiguration();
+        $this->apiRegistry = new ApiRegistry($apis);
+
+        $this->repositoryFactory = new RepositoryFactory(
+            $this->configuration,
+            $this->apiRegistry
+        );
     }
 
-    public function getRepository(string $modelClass): AbstractRepository
+    public function getConfiguration(): ClientConfiguration
+    {
+        return $this->configuration;
+    }
+
+    public function setConfiguration(ClientConfiguration $configuration): Client
+    {
+        $this->configuration = $configuration;
+
+        return $this;
+    }
+
+    public function addApi(Api $api): Client
+    {
+        $this->apiRegistry->addApi($api);
+
+        return $this;
+    }
+
+    public function getRepository(string $modelClass): RepositoryInterface
     {
         return $this->repositoryFactory->getRepository($modelClass);
     }
